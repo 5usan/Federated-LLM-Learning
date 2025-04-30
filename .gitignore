@@ -2,3 +2,5 @@ __pycache__
 /data/test.csv
 /data/train.csv
 /data/TwitterPreprocessedDataset.csv
+
+*.csv

@@ -21,18 +21,20 @@ def get_strategy() -> fl.server.strategy.FedAvg:
         evaluate_metrics_aggregation_fn=aggregate_metrics,
     )
 
+port = 8080
 def main():
-    print("[Server] Initializing...")
+    print(F"[Server] Server initializing at {port}. Waiting for clients...")
     # Strategy and server config
     strategy = get_strategy()
     config = ServerConfig(num_rounds=3)
 
     # Start the federated learning server
     start_server(
-        server_address="192.168.1.208:8080",
+        server_address=f"192.168.1.208:{port}",
         config=config,
         strategy=strategy,
     )
+
 
 if __name__ == "__main__":
     try:

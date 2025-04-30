@@ -98,7 +98,7 @@ def main():
     model.to(device)
 
     client = FlowerClient(model, train_loader, test_loader, device)
-    fl.client.start_numpy_client(server_address="localhost:8080", client=client)
+    fl.client.start_numpy_client(server_address="192.168.1.208:8080", client=client)
 
 
 if __name__ == "__main__":
