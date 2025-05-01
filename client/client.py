@@ -39,10 +39,9 @@ class FlowerClient(fl.client.NumPyClient):
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
-                outputs = self.model(
-                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
-                )
-                loss = outputs.loss
+                logits, labels = self.model((input_ids, attention_mask, labels))
+                loss_fn = torch.nn.CrossEntropyLoss()
+                loss = loss_fn(logits, labels)
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -67,13 +66,10 @@ class FlowerClient(fl.client.NumPyClient):
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
-
-                outputs = self.model(
-                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
-                )
-
-                loss = outputs.loss
-                preds = torch.argmax(outputs.logits, dim=1)
+                logits, labels = self.model((input_ids, attention_mask, labels))
+                loss_fn = torch.nn.CrossEntropyLoss()
+                loss = loss_fn(logits, labels)
+                preds = torch.argmax(logits, dim=1)
 
                 total_loss += loss.item()
                 num_batches += 1
@@ -110,10 +106,10 @@ def main():
     print(f"[Client {client_id}] Loaded data: {len(train_loader.dataset)} train, {len(test_loader.dataset)} test")
 
     model = load_model()
-    model.to(device)
+    # model.to(device)
 
     client = FlowerClient(model, train_loader, test_loader, device)
-    fl.client.start_numpy_client(server_address="192.168.1.208:8080", client=client)
+    fl.client.start_client(server_address="192.168.1.208:8080", client=client)
 
 
 if __name__ == "__main__":
