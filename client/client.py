@@ -7,6 +7,8 @@ from model import load_model
 from utlis import LocalTextDataset
 import sys
 from data.dataloader import load_twitter_partition 
+import time
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
 class FlowerClient(fl.client.NumPyClient):
@@ -22,20 +24,21 @@ class FlowerClient(fl.client.NumPyClient):
     def set_parameters(self, parameters):
         params_dict = zip(self.model.state_dict().keys(), parameters)
         state_dict = {k: torch.tensor(v) for k, v in params_dict}
-        self.model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=False)
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         self.model.train()
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=2e-5)
-
-        for epoch in range(1):  # 1 local epoch per round
+        # training start time
+        training_start_time = time.time()
+        print(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(training_start_time))}")
+        for epoch in range(10):
             print(f"[Client] Training on epoch {epoch + 1}")
             for batch in self.train_loader:
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
-
                 outputs = self.model(
                     input_ids=input_ids, attention_mask=attention_mask, labels=labels
                 )
@@ -43,6 +46,10 @@ class FlowerClient(fl.client.NumPyClient):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
+        training_finish_time = time.time()
+        print(f"Training ended at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(training_finish_time))}")
+        training_time = training_finish_time - training_start_time
+        print(f"[Client] Training completed in {training_time:.2f} seconds")
 
         return self.get_parameters({}), len(self.train_loader.dataset), {}
 
@@ -51,8 +58,9 @@ class FlowerClient(fl.client.NumPyClient):
         self.set_parameters(parameters)
         self.model.eval()
 
-        correct, total = 0, 0
-        loss_total = 0.0
+        y_true, y_pred = [], []
+        total_loss = 0.0
+        num_batches = 0
 
         with torch.no_grad():
             for batch in self.test_loader:
@@ -67,19 +75,25 @@ class FlowerClient(fl.client.NumPyClient):
                 loss = outputs.loss
                 preds = torch.argmax(outputs.logits, dim=1)
 
-                correct += (preds == labels).sum().item()
-                total += labels.size(0)
-                loss_total += loss.item()
+                total_loss += loss.item()
+                num_batches += 1
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())
 
-        if total == 0:
-            print("[Client] Warning: test set is empty!")
-            return 0.0, 0, {}
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+        accuracy = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
 
-        avg_loss = loss_total / total
-        accuracy = correct / total
+        print(f"[Client] Evaluation Results - Loss: {avg_loss:.4f}, Acc: {accuracy:.4f}, Prec: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
 
-        print(f"[Client] Eval completed: loss={avg_loss:.4f}, acc={accuracy:.4f}")
-        return avg_loss, total, {"accuracy": accuracy}
+        return avg_loss, len(self.test_loader.dataset), {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+    }
 
 
 def main():
@@ -87,11 +101,12 @@ def main():
     print(f"[Client] Using device: {device}")
     client_id = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
-    train_texts, train_labels, test_texts, test_labels = load_twitter_partition(client_id, num_clients=5)
+    train_texts, train_labels, test_texts, test_labels = load_twitter_partition(client_id, num_clients=3)
     train_dataset = LocalTextDataset(train_texts, train_labels)
     test_dataset = LocalTextDataset(test_texts, test_labels)
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=8)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=16)
+  
     print(f"[Client {client_id}] Loaded data: {len(train_loader.dataset)} train, {len(test_loader.dataset)} test")
 
     model = load_model()

@@ -2,7 +2,7 @@
 
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
 
-def load_model(num_labels: int = 2) -> DistilBertForSequenceClassification:
+def load_model(num_labels: int = 3) -> DistilBertForSequenceClassification:
     """
     Loads the DistilBERT model for sequence classification.
     
@@ -14,7 +14,10 @@ def load_model(num_labels: int = 2) -> DistilBertForSequenceClassification:
     """
     model = DistilBertForSequenceClassification.from_pretrained(
         "distilbert-base-uncased",
-        num_labels=num_labels
+        num_labels=num_labels,
+        ignore_mismatched_sizes=True,
+        output_attentions=False,
+        output_hidden_states=False
     )
     return model
 

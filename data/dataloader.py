@@ -5,8 +5,12 @@ from datasets import load_dataset
 from typing import List, Tuple
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
-TWITTER_PREPROCESSED_DATA = os.path.join(
-    os.getcwd(), "data", "TwitterPreprocessedDataset.csv"
+SENTIMENT_TRAIN_DATASET = os.path.join(
+    os.getcwd(), "data", "train.csv"
+)
+
+SENTIMENT_TEST_DATASET = os.path.join(
+    os.getcwd(), "data", "test.csv"
 )
 
 def load_imdb_partition(client_id: int, num_clients: int = 5) -> Tuple[List[str], List[int], List[str], List[int]]:
@@ -49,23 +53,31 @@ def load_twitter_partition(client_id: int, num_clients: int = 5) -> Tuple[List[s
     Returns:
         train_texts, train_labels, test_texts, test_labels
     """
-    df = pd.read_csv(TWITTER_PREPROCESSED_DATA)
-    df = df.sample(frac=1, random_state=42).reset_index(drop=True)  # Shuffle the dataset
+    train_df = pd.read_csv(SENTIMENT_TRAIN_DATASET)
+    test_df = pd.read_csv(SENTIMENT_TEST_DATASET)
+    train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)  # Shuffle the dataset
 
     # Split data among clients (non-overlapping)
-    total = len(df)
+    total = len(train_df)
     shard_size = total // num_clients
+
+    total_test = len(test_df)
+    shard_size_test = total_test // num_clients
 
     start = client_id * shard_size
     end = start + shard_size
-    print(f"[Client {client_id}] Loading data from {start} to {end}")
-    train_split = df.iloc[start:end]
+    print(f"[Client {client_id}] Loading train data from {start} to {end}")
+    train_split = train_df.iloc[start:end]
+
+    start_test = client_id * shard_size_test
+    end_test = start_test + shard_size_test
+    print(f"[Client {client_id}] Loading test data from {start_test} to {end_test}")
+    test_split = test_df.iloc[start_test:end_test]
 
     # Use same test set for all clients (or subsample here too)
-    test_split = df.iloc[:100]  # uniform test size
-
     label_encoder = LabelEncoder()
     train_labels = label_encoder.fit_transform(train_split["label"])
     test_labels = label_encoder.transform(test_split["label"])
 
-    return train_split["feature"].tolist(), train_labels.tolist(), test_split["feature"].tolist(), test_labels.tolist()
+    return train_split["text"].tolist(), train_labels.tolist(), test_split["text"].tolist(), test_labels.tolist()
+
