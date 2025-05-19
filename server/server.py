@@ -39,7 +39,7 @@ def main():
 
     # Start the federated learning server
     start_server(
-        server_address=f"192.168.1.208:{port}",
+        server_address=f"localhost:{port}",
         config=config,
         strategy=strategy,
     )
@@ -50,3 +50,6 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n[Server] Shutdown requested. Exiting gracefully.")
+
+#python server/server.py
+#python -m client.client 0
